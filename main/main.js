@@ -705,7 +705,7 @@ function postProcess(sideLength, gridFrom, floorInten, cropCircle){
     let xprime;
     for (let i = 0; i < sideLength; i++) {
         for (let j = 0; j < sideLength; j++){
-            xprime =  gridTo[i][j] / maxPixel;
+            xprime = 1 - gridTo[i][j] / maxPixel;
             
             if (floorVal==1) gridTo[i][j] = 0;
             if (xprime<floorVal){
