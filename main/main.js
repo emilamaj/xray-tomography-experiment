@@ -11,7 +11,7 @@ let ambientLight, light;
 let scanCanvasWidth, scanCanvasHeight;
 let sliceCanvasWidth, sliceCanvasHeight;
 let catCanvasWidth, catCanvasHeight;
-let teapotMaterial,ringMaterial,planeMaterial,emitterMaterial,detectorMaterial,beamMaterial,knotMaterial;
+let teapotMaterial,ringMaterial,planeMaterial,emitterMaterial,detectorMaterial,beamMaterial,knotMaterial,reconsMaterial;
 let textureCube;
 let planeMesh, refMesh, mainModel, meshTeapot, meshRing, meshEmitter, meshBeam, meshPlane, meshDetector, meshKnot;//Various meshes used
 let scanHeight, scanRadius, thetaDiv, vertDiv, beamDivergence, numDet;//scanning parameters
@@ -257,6 +257,8 @@ function init() {
     beamMaterial.specular.copy(redColor);
     knotMaterial = new THREE.MeshPhongMaterial({color: knotColor, side:THREE.DoubleSide});
     knotMaterial.specular.copy(knotColor);
+    reconsMaterial = new THREE.MeshPhongMaterial({color: redColor, side:THREE.DoubleSide});
+    reconsMaterial.specular.copy(redColor);
     
     //sliceCompute();
     //catCompute();
