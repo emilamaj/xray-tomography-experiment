@@ -8,13 +8,6 @@ This "slice pile" represents a pile of point grids of the 3D volume that is dedu
 A final step is taken to build the mesh geometry represented by the point grids.
 
 
-### Markdown
-
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
-
-```markdown
-Syntax highlighted code block
-
 # Header 1
 ## Header 2
 ### Header 3
