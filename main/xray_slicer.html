@@ -120,7 +120,13 @@
 				<div id="catControls" class="panel">
 					<div class="sidediv">
 						<div class="ctrltxt">
-							<input type="button" value="Start CAT reconstruction" class="button" id="startButton">
+							<p class="textLabel">Iso level: <span id="isoText">%</span></p>
+							<input type="range" min="0" max="100" value="80" class="slider" id="isoSlider">
+						</div>
+					</div>
+					<div class="sidediv">
+						<div class="ctrltxt">
+							<input type="button" value="Start CAT reconstruction" class="button" id="startCATButton">
 						</div>
 					</div>
 				</div>
@@ -144,5 +150,6 @@
 			}
 		</script>
 		<script type="module" src="main.js"></script>
+		<script type="module" src="marchCubes.js"></script>
 	</body>
 </html>

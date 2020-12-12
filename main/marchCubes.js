@@ -1,5 +1,6 @@
 //Marching cubes algorithm
 //Adapted from C to JS http://paulbourke.net/geometry/polygonise/
+//Visit the original website to get explanations and the cube numbering convention
 
 /*
 typedef struct {
@@ -12,6 +13,83 @@ typedef struct {
  } GRIDCELL;
 */
 
+import * as THREE from '../build/three.module.js';
+//Slice should be processed, iso between 0 and 1, sliceDim is the side of the pixel Grid
+function meshFromSlicePile(slicePile, isoLevel, sliceDim, sideLength, verticalLength){
+    let geoRecons = new THREE.Geometry();
+    let marchedTriangles;
+    let verticeIndex = 0;
+    let localCube = new Object();
+    let vertDiv = slicePile.length
+    localCube.p = [];
+    localCube.val = [];
+    for(let ind=0; ind<8; ind++){//Init localCube object
+        localCube.p[ind] = new THREE.Vector3(0, 0, 0);
+        localCube.val[ind] = 0;
+    }
+    let i, j, k;
+    for(i=0; i<sliceDim-1; i++){
+        for(j=0; j<sliceDim-1; j++){
+            for(k=0; k<vertDiv-1; k++){
+//TODO: Used bitwise operation on cube edge index
+                //localCube.p[ind].x = (sideLength / sliceDim) * (i + (ind AND 1) XOR (ind AND 2))
+                localCube.p[0].x = (sideLength / sliceDim) * i
+                localCube.p[1].x = (sideLength / sliceDim) * (i+1)
+                localCube.p[2].x = (sideLength / sliceDim) * (i+1)
+                localCube.p[3].x = (sideLength / sliceDim) * i
+                localCube.p[4].x = (sideLength / sliceDim) * i
+                localCube.p[5].x = (sideLength / sliceDim) * (i+1)
+                localCube.p[6].x = (sideLength / sliceDim) * (i+1)
+                localCube.p[7].x = (sideLength / sliceDim) * i
+                //localCube.p[ind].z = (sideLength / sliceDim) * (i + (ind AND 2))
+                localCube.p[0].z = (sideLength / sliceDim) * j
+                localCube.p[1].z = (sideLength / sliceDim) * j
+                localCube.p[2].z = (sideLength / sliceDim) * (j+1)
+                localCube.p[3].z = (sideLength / sliceDim) * (j+1)
+                localCube.p[4].z = (sideLength / sliceDim) * j
+                localCube.p[5].z = (sideLength / sliceDim) * j
+                localCube.p[6].z = (sideLength / sliceDim) * (j+1)
+                localCube.p[7].z = (sideLength / sliceDim) * (j+1)
+                //localCube.p[ind].y = (sideLength / sliceDim) * (i + (ind AND 4))
+                localCube.p[0].y = (verticalLength / vertDiv) * k
+                localCube.p[1].y = (verticalLength / vertDiv) * k
+                localCube.p[2].y = (verticalLength / vertDiv) * k
+                localCube.p[3].y = (verticalLength / vertDiv) * k
+                localCube.p[4].y = (verticalLength / vertDiv) * (k+1)
+                localCube.p[5].y = (verticalLength / vertDiv) * (k+1)
+                localCube.p[6].y = (verticalLength / vertDiv) * (k+1)
+                localCube.p[7].y = (verticalLength / vertDiv) * (k+1)
+
+                
+                //localCube.val[ind] = slicePile[k+(ind AND 4)][i+(ind AND 1)XOR(ind AND 2)][j+(ind AND 2)]
+                localCube.val[0] = slicePile[k][i][j]
+                localCube.val[1] = slicePile[k][i+1][j]
+                localCube.val[2] = slicePile[k][i+1][j+1]
+                localCube.val[3] = slicePile[k][i][j+1]
+                localCube.val[4] = slicePile[k+1][i][j]
+                localCube.val[5] = slicePile[k+1][i+1][j]
+                localCube.val[6] = slicePile[k+1][i+1][j+1]
+                localCube.val[7] = slicePile[k+1][i][j+1]
+
+                marchedTriangles = cubeTriangles(localCube, isoLevel)
+                for(let n=0; n<marchedTriangles.numTriangles; n++){
+                    geoRecons.vertices.push(marchedTriangles[n][0].clone());
+                    geoRecons.vertices.push(marchedTriangles[n][1].clone());
+                    geoRecons.vertices.push(marchedTriangles[n][2].clone());
+                    geoRecons.faces.push(new THREE.Face3(verticeIndex, verticeIndex + 1, verticeIndex + 2));
+                    verticeIndex += 3;
+                }
+            }
+        }
+    }
+    const redColor = new THREE.Color("rgb(200, 220, 20)");
+    let reconsMaterial = new THREE.MeshPhongMaterial({color: redColor, side:THREE.DoubleSide});
+    reconsMaterial.specular.copy(redColor);
+    geoRecons.computeFaceNormals()
+    let meshRecons = new THREE.Mesh(geoRecons, reconsMaterial);
+    return meshRecons
+}
+
 /*
    Given a grid cell and an isolevel, calculate the triangular
    facets required to represent the isosurface through the cell.
@@ -20,28 +98,9 @@ typedef struct {
 	0 will be returned if the grid cell is either totally above
    of totally below the isolevel.
 */
-function meshFromSlicePile(slicePile){
-    
-    var geoRecons = new THREE.Geometry(); 
-    let v1, v2, v3;
-    for(let i=0; i<segments; i++){
-        v1 = new THREE.Vector3()
-        v2 = new THREE.Vector3()
-        v3 = new THREE.Vector3()
-    
-        geoRecons.vertices.push(v1.clone());
-        geoRecons.vertices.push(v2.clone());
-        geoRecons.vertices.push(v3.clone());
-        geoRecons.faces.push(new THREE.Face3(3*i, 3*i + 1, 3*i + 2));
-    }
-    meshRecons = new THREE.Mesh(geoRecons, reconsMaterial);
-    meshRecons.material.transparent = true;
-    meshRecons.material.opacity = 0.5
-}
-
-function cubeTriangles(grid, isolevel)
+function cubeTriangles(grid, isoLevel)
 {
-    let triangles;
+    let triangles = [];
     let cubeindex = 0;
     let vertlist = [];
 
@@ -50,69 +109,65 @@ function cubeTriangles(grid, isolevel)
       tells us which vertices are inside of the surface
    */
    cubeindex = 0;
-   if (grid.val[0] < isolevel) cubeindex |= 1;
-   if (grid.val[1] < isolevel) cubeindex |= 2;
-   if (grid.val[2] < isolevel) cubeindex |= 4;
-   if (grid.val[3] < isolevel) cubeindex |= 8;
-   if (grid.val[4] < isolevel) cubeindex |= 16;
-   if (grid.val[5] < isolevel) cubeindex |= 32;
-   if (grid.val[6] < isolevel) cubeindex |= 64;
-   if (grid.val[7] < isolevel) cubeindex |= 128;
+   if (grid.val[0] < isoLevel) cubeindex |= 1;
+   if (grid.val[1] < isoLevel) cubeindex |= 2;
+   if (grid.val[2] < isoLevel) cubeindex |= 4;
+   if (grid.val[3] < isoLevel) cubeindex |= 8;
+   if (grid.val[4] < isoLevel) cubeindex |= 16;
+   if (grid.val[5] < isoLevel) cubeindex |= 32;
+   if (grid.val[6] < isoLevel) cubeindex |= 64;
+   if (grid.val[7] < isoLevel) cubeindex |= 128;
 
    /* Cube is entirely in/out of the surface */
    if (edgeTable[cubeindex] == 0)
       return(0);
 
    /* Find the vertices where the surface intersects the cube */
-   if (edgeTable[cubeindex] & 1) vertlist[0] = VertexInterp(isolevel,grid.p[0],grid.p[1],grid.val[0],grid.val[1]);
-   if (edgeTable[cubeindex] & 2) vertlist[1] = VertexInterp(isolevel,grid.p[1],grid.p[2],grid.val[1],grid.val[2]);
-   if (edgeTable[cubeindex] & 4) vertlist[2] = VertexInterp(isolevel,grid.p[2],grid.p[3],grid.val[2],grid.val[3]);
-   if (edgeTable[cubeindex] & 8) vertlist[3] = VertexInterp(isolevel,grid.p[3],grid.p[0],grid.val[3],grid.val[0]);
-   if (edgeTable[cubeindex] & 16) vertlist[4] = VertexInterp(isolevel,grid.p[4],grid.p[5],grid.val[4],grid.val[5]);
-   if (edgeTable[cubeindex] & 32) vertlist[5] = VertexInterp(isolevel,grid.p[5],grid.p[6],grid.val[5],grid.val[6]);
-   if (edgeTable[cubeindex] & 64) vertlist[6] = VertexInterp(isolevel,grid.p[6],grid.p[7],grid.val[6],grid.val[7]);
-   if (edgeTable[cubeindex] & 128) vertlist[7] = VertexInterp(isolevel,grid.p[7],grid.p[4],grid.val[7],grid.val[4]);
-   if (edgeTable[cubeindex] & 256) vertlist[8] = VertexInterp(isolevel,grid.p[0],grid.p[4],grid.val[0],grid.val[4]);
-   if (edgeTable[cubeindex] & 512) vertlist[9] = VertexInterp(isolevel,grid.p[1],grid.p[5],grid.val[1],grid.val[5]);
-   if (edgeTable[cubeindex] & 1024)
-      vertlist[10] =
-         VertexInterp(isolevel,grid.p[2],grid.p[6],grid.val[2],grid.val[6]);
-   if (edgeTable[cubeindex] & 2048)
-      vertlist[11] =
-         VertexInterp(isolevel,grid.p[3],grid.p[7],grid.val[3],grid.val[7]);
+   if (edgeTable[cubeindex] & 1) vertlist[0] = vertexInterp(isoLevel,grid.p[0],grid.p[1],grid.val[0],grid.val[1]);
+   if (edgeTable[cubeindex] & 2) vertlist[1] = vertexInterp(isoLevel,grid.p[1],grid.p[2],grid.val[1],grid.val[2]);
+   if (edgeTable[cubeindex] & 4) vertlist[2] = vertexInterp(isoLevel,grid.p[2],grid.p[3],grid.val[2],grid.val[3]);
+   if (edgeTable[cubeindex] & 8) vertlist[3] = vertexInterp(isoLevel,grid.p[3],grid.p[0],grid.val[3],grid.val[0]);
+   if (edgeTable[cubeindex] & 16) vertlist[4] = vertexInterp(isoLevel,grid.p[4],grid.p[5],grid.val[4],grid.val[5]);
+   if (edgeTable[cubeindex] & 32) vertlist[5] = vertexInterp(isoLevel,grid.p[5],grid.p[6],grid.val[5],grid.val[6]);
+   if (edgeTable[cubeindex] & 64) vertlist[6] = vertexInterp(isoLevel,grid.p[6],grid.p[7],grid.val[6],grid.val[7]);
+   if (edgeTable[cubeindex] & 128) vertlist[7] = vertexInterp(isoLevel,grid.p[7],grid.p[4],grid.val[7],grid.val[4]);
+   if (edgeTable[cubeindex] & 256) vertlist[8] = vertexInterp(isoLevel,grid.p[0],grid.p[4],grid.val[0],grid.val[4]);
+   if (edgeTable[cubeindex] & 512) vertlist[9] = vertexInterp(isoLevel,grid.p[1],grid.p[5],grid.val[1],grid.val[5]);
+   if (edgeTable[cubeindex] & 1024) vertlist[10] = vertexInterp(isoLevel,grid.p[2],grid.p[6],grid.val[2],grid.val[6]);
+   if (edgeTable[cubeindex] & 2048) vertlist[11] = vertexInterp(isoLevel,grid.p[3],grid.p[7],grid.val[3],grid.val[7]);
 
    /* Create the triangle */
    let ntriang = 0;
    for (let i=0; triTable[cubeindex][i]!=-1; i+=3) {
-      triangles[ntriang].p[0] = vertlist[triTable[cubeindex][i  ]];
-      triangles[ntriang].p[1] = vertlist[triTable[cubeindex][i+1]];
-      triangles[ntriang].p[2] = vertlist[triTable[cubeindex][i+2]];
+      triangles[ntriang] = []
+      triangles[ntriang][0] = vertlist[triTable[cubeindex][i  ]];
+      triangles[ntriang][1] = vertlist[triTable[cubeindex][i+1]];
+      triangles[ntriang][2] = vertlist[triTable[cubeindex][i+2]];
       ntriang++;
    }
-
-   return(ntriang);
+   triangles.numTriangles = ntriang
+   return(triangles);
 }
 
-function
 /*
    Linearly interpolate the position where an isosurface cuts
    an edge between two vertices, each with their own scalar value
 */
 /*
-    double isolevel;
+    double isoLevel;
     XYZ p1,p2;
     double valp1,valp2;
     double mu;
     XYZ p;
 */
-function vertexInterp(isolevel,p1,p2,valp1,valp2)
+function vertexInterp(isoLevel,p1,p2,valp1,valp2)
 {
     let mu = 0.0
     let p = new THREE.Vector3()
-    if (Math.abs(isolevel-valp1) < 0.00001) return(p1);
-    if (Math.abs(isolevel-valp2) < 0.00001) return(p2);
+    if (Math.abs(isoLevel-valp1) < 0.00001) return(p1);
+    if (Math.abs(isoLevel-valp2) < 0.00001) return(p2);
     if (Math.abs(valp1-valp2) < 0.00001) return(p1);
-    mu = (isolevel - valp1) / (valp2 - valp1);
+    mu = (isoLevel - valp1) / (valp2 - valp1);
     p.x = p1.x + mu * (p2.x - p1.x);
     p.y = p1.y + mu * (p2.y - p1.y);
     p.z = p1.z + mu * (p2.z - p1.z);
@@ -413,3 +468,5 @@ var triTable =
 [0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
 [0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
 [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]];
+
+export {meshFromSlicePile};

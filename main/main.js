@@ -3,29 +3,36 @@
 import * as THREE from '../build/three.module.js';
 import {OrbitControls} from './jsm/controls/OrbitControls.js';
 //import {TeapotBufferGeometry} from './jsm/geometries/TeapotBufferGeometry.js';
+import {meshFromSlicePile} from './marchCubes.js'
 
 let scanCamera, scanScene, scanRenderer, scanCameraControls;
 let sliceCamera, sliceScene, sliceRenderer, sliceCameraControls;
 let catCamera, catScene, catRenderer, catCameraControls;
-let ambientLight, light;
+let lightDirScan, lightDirCat, ambientSliceLight, ambientCatLight;
 let scanCanvasWidth, scanCanvasHeight;
 let sliceCanvasWidth, sliceCanvasHeight;
 let catCanvasWidth, catCanvasHeight;
 let teapotMaterial,ringMaterial,planeMaterial,emitterMaterial,detectorMaterial,beamMaterial,knotMaterial,reconsMaterial;
 let textureCube;
-let planeMesh, refMesh, mainModel, meshTeapot, meshRing, meshEmitter, meshBeam, meshPlane, meshDetector, meshKnot;//Various meshes used
+let mainModel, meshTeapot, meshRing, meshEmitter, meshBeam, meshPlane, meshDetector, meshKnot;//Various meshes used
 let scanHeight, scanRadius, thetaDiv, vertDiv, beamDivergence, numDet;//scanning parameters
 let slicePos;//Position of the slice, as a ratio of scanHeight
 let refData;//Reference slice, it is the goal of the reconstruction to produce it.
 let sliceData;//Holds the raw data of the scan to be fed to the reconstruction algorithm
 let sliceDimension;//Dimension of the reconstruction 2D grid (cell resolution)
 let sliceGrid;//2D grid containing the intensities of the reconstructed points
-let sandwichRef, sandwichPile;//Array containing pile of slices (both reference and reconstructed)
 let modelAbsorptionFactor;//Absorption factor, I=I0*exp(-k*L)
 let isScanInitOk = false;
 let isSliceInitOk = false;
+let isSliceGeometryBuilt = false;
+let isSliceComputed = false;
+let isCatGeometryBuilt = false;
+let isCatComputed = false;
 let rebuildScan = true;//Flag to be set for rebuilding the scan model view scene
 let floorVal, clipCircle;//Intensity cut-off floor, crop circle radius (in percent of slice size)
+let gridPileRef, gridPile;//Array containing pile of slices (both reference and reconstructed)
+let isoLevel;
+let planeMeshRef, planeMesh, catMeshRef, catMesh;
 
 scanControlsSetup();
 sliceControlsSetup();
@@ -101,7 +108,7 @@ function sliceControlsSetup(){
     let sliceFilterButton = document.getElementById("sliceFilterButton");
 
     function updateSliceText(){
-        //Divide by 10 to give 0.1% resolution
+        //Divide by 10 to give 0.1% resolution for the percentage
         slicePosText.innerHTML = slicePosSlider.value/10;
         slicePos = slicePosSlider.value / 1000;
         sliceDimText.innerHTML = 2 ** sliceDimSlider.value;
@@ -125,13 +132,25 @@ function sliceControlsSetup(){
     sliceDimSlider.oninput = updateSliceText;
     sliceFloorSlider.oninput = updateSliceText
     sliceClipSlider.oninput = updateSliceText
-    sliceButton.onclick = function(){sliceCompute();processSlice();}
+    sliceButton.onclick = function(){sliceCompute(scanHeight*slicePos, true);processSlice();}
     sliceClipSlider.oninput = function(){updateSliceText();processSlice();}
     sliceFloorSlider.oninput = function(){updateSliceText();processSlice();}
     sliceFilterButton.onclick = function(){updateSliceText();processSlice();}
 }
 function catControlsSetup(){
+    let isoSlider = document.getElementById("isoSlider");
+    let isoText = document.getElementById("isoText");
+    let startCATButton = document.getElementById("startCATButton");
 
+    function updateCATText(){
+        //Divide by 10 to give 0.1% resolution
+        isoText.innerHTML = isoSlider.value/100;
+        isoLevel = isoSlider.value / 100;
+    }
+
+    updateCATText();
+    isoSlider.oninput = function(){updateCATText(); processCat();};
+    startCATButton.onclick = function(){catCompute(); processCat();}
 }
 
 function canvasUpdateSize(){
@@ -188,16 +207,16 @@ function init() {
 
     // CAMERA
     //scan
-    scanCamera = new THREE.PerspectiveCamera(45, scanCanvasWidth / scanCanvasHeight, 0.05, 1000);
+    scanCamera = new THREE.PerspectiveCamera(45, scanCanvasWidth / scanCanvasHeight, 0.01, 100);
     scanCamera.position.set(0, 0, 5);
     scanCamera.lookAt(new THREE.Vector3(0,0,0));
     //slice
-    sliceCamera = new THREE.PerspectiveCamera(45, sliceCanvasWidth / sliceCanvasHeight, 0.05, 1000);
+    sliceCamera = new THREE.PerspectiveCamera(45, sliceCanvasWidth / sliceCanvasHeight, 0.01, 100);
     sliceCamera.position.set(0, 0, 5);
     sliceCamera.lookAt(new THREE.Vector3(0,0,0));
     //cat
-    catCamera = new THREE.PerspectiveCamera(45, catCanvasWidth / catCanvasHeight, 0.05, 1000);
-    catCamera.position.set(0, 0, 3);
+    catCamera = new THREE.PerspectiveCamera(45, catCanvasWidth / catCanvasHeight, 0.01, 100);
+    catCamera.position.set(0, 0, 5);
     catCamera.lookAt(new THREE.Vector3(0,0,0));
     // CONTROLS
     scanCameraControls = new OrbitControls( scanCamera, scanRenderer.domElement );
@@ -205,6 +224,9 @@ function init() {
 
     sliceCameraControls = new OrbitControls( sliceCamera, sliceRenderer.domElement );
     sliceCameraControls.addEventListener( 'change', renderSlice );
+    
+    catCameraControls = new OrbitControls( catCamera, catRenderer.domElement );
+    catCameraControls.addEventListener( 'change', renderCat );
 
     // scene itself
     scanScene = new THREE.Scene();
@@ -212,13 +234,23 @@ function init() {
     catScene = new THREE.Scene();
 
     // LIGHTS
-    ambientLight = new THREE.AmbientLight( 0x333333 );	// 0.2
-    light = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
-    ambientLight.color.setHSL(0.1, 0.7, 0.9 );//HSL: hue, saturation, lightness
-    light.position.set(0.3, 0.3, 0.7);//Light "direction"
-    light.color.setHSL(0.1, 0.01, 0.25);
-    scanScene.add(light);
-    sliceScene.add(ambientLight);
+    lightDirScan = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
+    lightDirScan.position.set(0.3, 0.3, 0.7);//Light "direction"
+    lightDirScan.color.setHSL(0.1, 0.01, 0.25);
+    scanScene.add(lightDirScan);
+
+    ambientSliceLight = new THREE.AmbientLight( 0x333333 );	// 0.2
+    ambientSliceLight.color.setHSL(0.1, 0.7, 0.9 );//HSL: hue, saturation, lightness
+    sliceScene.add(ambientSliceLight);
+    
+    lightDirCat = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
+    lightDirCat.position.set(0.3, 0.3, 0.7);//Light "direction"
+    lightDirCat.color.setHSL(0.1, 0.01, 0.25);
+    catScene.add(lightDirCat);
+    ambientCatLight = new THREE.AmbientLight( 0x333333 );	// 0.2
+    ambientCatLight.color.setHSL(0.1, 0.7, 0.9 );//HSL: hue, saturation, lightness
+    catScene.add(ambientCatLight);
+
     //SKY CUBE
     const path = "textures/cube/pisa/";
     const urls = [
@@ -226,16 +258,28 @@ function init() {
         path + "py.png", path + "ny.png",
         path + "pz.png", path + "nz.png"
     ];
-    textureCube = new THREE.CubeTextureLoader().load(urls, dummy => rebuildScan = true);
+    textureCube = new THREE.CubeTextureLoader().load(urls, lambda => {rebuildScan = true; requestAnimationFrame(renderScan);});
     textureCube.encoding = THREE.sRGBEncoding;
     scanScene.background = textureCube;
     sliceScene.background = textureCube;
+    catScene.background = textureCube;
     //FLOOR GRID
-    const helper = new THREE.GridHelper( 10, 10 );
-    helper.position.y = 0;
-    helper.material.opacity = 0.6;
-    helper.material.transparent = true;
-    scanScene.add( helper );
+    const helperScan = new THREE.GridHelper( 10, 10 );
+    helperScan.position.y = 0;
+    helperScan.material.opacity = 0.6;
+    helperScan.material.transparent = true;
+    scanScene.add(helperScan);
+    const helperSlice = new THREE.GridHelper( 10, 10 );
+    helperSlice.position.y = 0;
+    helperSlice.material.opacity = 0.6;
+    helperSlice.material.transparent = true;
+    sliceScene.add(helperSlice);
+    THREE.grid
+    const helperCat = new THREE.GridHelper( 10, 10 );
+    helperCat.position.y = 0;
+    helperCat.material.opacity = 0.6;
+    helperCat.material.transparent = true;
+    catScene.add(helperCat);
 
     // MATERIALS
     const teapotColor = new THREE.Color("hsl(0.1, 50%, 60%)");
@@ -346,34 +390,23 @@ function scanSceneBuild(){//Used to modify the scanScene without having to call 
     const knotGeometry = new THREE.TorusKnotGeometry(radius, tubeRadius, tubularSegments, radialSegments, p, q);
     meshKnot = new THREE.Mesh(knotGeometry, knotMaterial)
     meshKnot.rotation.x = - Math.PI / 2;
+    meshKnot.position.y = 1
     mainModel = meshKnot
     scanScene.add(mainModel)
 }
 
-function processSlice(){//
-    let refMesh = meshFromGrid(sliceDimension, refData, val=>val);
-    refMesh.position.x = -0.5;
-    sliceScene.add(refMesh)
+function sliceCompute(ypos, globalVarStore=true){//Slice the model at the given height and compute reverse tomography slice
+    let sliceRef=[];
+    let sinogram = [];//Stores the sinogram
+    let slice = [];
 
-    let processedSliceGrid = postProcess(sliceDimension, sliceGrid, floorVal, clipCircle)
-    let planeMesh = meshFromGrid(sliceDimension, processedSliceGrid, val=>val);
-    
-    planeMesh.position.x = 0.5
-    sliceScene.add(planeMesh);
-    renderSlice();
-}
-
-function sliceCompute(){//Slice the model at the given height and compute reverse tomography slice
-    refData=[];
-    sliceData = [];//Stores the sinogram
-    sliceGrid = [];
     let lineEmpty = [];
     for(let i = 0; i < sliceDimension; i++){
         lineEmpty.push(0);
     }
     for (let i=0; i<sliceDimension; i++){//Init with zeroes the 2d grid
-        sliceGrid.push(lineEmpty.slice());
-        refData.push(lineEmpty.slice());
+        slice.push(lineEmpty.slice());
+        sliceRef.push(lineEmpty.slice());
     }
 
     let beamData = [];
@@ -387,14 +420,14 @@ function sliceCompute(){//Slice the model at the given height and compute revers
     raycaster.far = 2 * scanRadius;
     
     //SIMULATE DATA ACQUISITION OF THE SCANNING
-    rayPoint = new THREE.Vector3(-scanRadius, scanHeight*slicePos, 0);//Position of the emitter
+    rayPoint = new THREE.Vector3(-scanRadius, ypos, 0);//Position of the emitter
     for (let epos = 0; epos < thetaDiv; epos++){//Iterate over emitter positions
         beamData = [];
         for (let d = 0; d < numDet; d++){//Iterate over detectors
             //Calculate the position of the current detector
             //The hemicircular geometry is taken into account
             rayDirection.x = scanRadius * Math.cos((-beamDivergence/2) + d*beamDivergence/numDet - epos*2*Math.PI/thetaDiv);	
-            rayDirection.y = scanHeight*slicePos;
+            rayDirection.y = ypos;
             rayDirection.z = scanRadius * Math.sin((-beamDivergence/2) + d*beamDivergence/numDet - epos*2*Math.PI/thetaDiv);
             rayDirection.sub(rayPoint);
             rayDirection.normalize();
@@ -427,7 +460,7 @@ function sliceCompute(){//Slice the model at the given height and compute revers
                         z1 = Math.round(z1)
                         z1 = (z1 >= sliceDimension) ? sliceDimension -1 : z1
                         z1 = (z1 <= 0) ? 0 : z1
-                        drawLineBresenham(x0, z0, x1, z1, 1, refData)
+                        drawLineBresenham(x0, z0, x1, z1, 1, sliceRef)
                         //Using the distance property gives us the travalled distance inside the mesh
                         penetrationLength += (intersects[2*itsc+1].distance - intersects[2*itsc].distance);
                     }
@@ -442,7 +475,7 @@ function sliceCompute(){//Slice the model at the given height and compute revers
             //Using an exponential law to simulate absorption by the material I=I0*exp(-k*L)
             beamData.push(Math.exp(-modelAbsorptionFactor*penetrationLength));
         }
-        sliceData.push(beamData.slice());
+        sinogram.push(beamData.slice());
         rayPoint.applyAxisAngle(new THREE.Vector3(0,1,0), 2 * Math.PI / thetaDiv);//Rotate the detector position
     }
 
@@ -478,14 +511,79 @@ function sliceCompute(){//Slice the model at the given height and compute revers
             z1 = (z1 <= 0) ? 0 : z1
 
             //Draws a "line" on sliceGrid like on a 2D pixel grid.
-            drawLineBresenham(x0,z0,x1,z1,sliceData[i][j],sliceGrid);
+            drawLineBresenham(x0,z0,x1,z1,sinogram[i][j],slice);
         }
         emitterPoint.applyAxisAngle(new THREE.Vector3(0,1,0), 2 * Math.PI / thetaDiv);//Rotate the detector position
     }
     isSliceInitOk = true;
+    if(globalVarStore){
+        sliceGrid = slice
+        refData = sliceRef
+        isSliceComputed = true;
+    }else{
+        let retret = {gridSlice:slice, gridSliceRef:sliceRef}
+        return retret
+    }
 }
-function catCompute(){
+function processSlice(){//
+    if(isSliceGeometryBuilt){
+        planeMeshRef.geometry.dispose();
+        sliceScene.remove(planeMeshRef);
+        
+        planeMesh.geometry.dispose()
+        sliceScene.remove(planeMesh)
+    }
+    if(isSliceComputed){
+        planeMeshRef = meshFromGrid(sliceDimension, refData, val=>val);
+        planeMeshRef.position.x = -0.5;
+        planeMeshRef.position.y = 0.5;
+        sliceScene.add(planeMeshRef)
 
+        let processedSliceGrid = postProcess(sliceDimension, sliceGrid, floorVal, clipCircle)
+        planeMesh = meshFromGrid(sliceDimension, processedSliceGrid, val=>val);
+        planeMesh.position.x = 0.5
+        planeMesh.position.y = 0.5;
+        sliceScene.add(planeMesh);
+        isSliceGeometryBuilt = true;
+    }
+    renderSlice();
+}
+
+function catCompute(){
+    gridPile = []
+    gridPileRef = []
+    let sliceResult;
+    let processedSliceGrid;
+    for(let i=0; i<vertDiv; i++){
+        sliceResult = sliceCompute(scanHeight*i/vertDiv, false)
+        gridPileRef.push(sliceResult.gridSliceRef)
+        processedSliceGrid = postProcess(sliceDimension, sliceResult.gridSlice, floorVal, clipCircle)
+        gridPile.push(processedSliceGrid)
+    }
+    isCatComputed = true;
+}
+function processCat(){
+    if(isCatGeometryBuilt){
+        catMesh.geometry.dispose()
+        catScene.remove(catMesh)
+
+        catMeshRef.geometry.dispose()
+        catScene.remove(catMeshRef)
+    }
+
+    if(isCatComputed){
+        catMeshRef = meshFromSlicePile(gridPileRef, isoLevel, sliceDimension, 2*scanRadius, scanHeight);
+        catMeshRef.position.x = -5
+        catMeshRef.position.z = -3
+        catScene.add(catMeshRef)
+
+        catMesh = meshFromSlicePile(gridPile, isoLevel, sliceDimension, 2*scanRadius, scanHeight);
+        catMesh.position.x = -1
+        catMesh.position.z = -3
+        catScene.add(catMesh)
+        isCatGeometryBuilt = true;
+    }
+    renderCat();
 }
 
 function renderScan() {
@@ -522,7 +620,7 @@ function renderSlice(){
     sliceRenderer.render(sliceScene, sliceCamera);
 }
 function renderCat(){
-    
+    catRenderer.render(catScene, catCamera);
 }
 
 //Bresenham's line algo, fast but not rasterized
