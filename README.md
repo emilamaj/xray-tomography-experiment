@@ -7,19 +7,4 @@ Several basic image filtering steps are performed on these 2D slices before they
 This "slice pile" represents a pile of point grids of the 3D volume that is deduced by the algorithm for the scanned object.
 A final step is taken to build the mesh geometry represented by the point grids.
 
-
-# Header 1
-## Header 2
-### Header 3
-
-
-
-**Bold** and _Italic_ and `Code` text
-
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
+[Image](src)
