@@ -8,4 +8,3 @@ This "slice pile" represents a pile of point grids of the 3D volume that is dedu
 A final step is taken to build the mesh geometry represented by the point grids.
 
 ![Alt text](screenshot.png?raw=true "X ray CAT scan")
-[Image](screenshot.png)
