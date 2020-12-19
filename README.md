@@ -8,3 +8,8 @@ This "slice pile" represents a pile of point grids of the 3D volume that is dedu
 A final step is taken to build the mesh geometry represented by the point grids.
 
 ![Alt text](screenshot.png?raw=true "X ray CAT scan")
+
+To use this code simply load the repository files into your favorite http server and load xray_slicer.html
+Efforts to refactor the code are being taken. 
+The raycasting routine is currently very laggy. Candidate replacement functions are included in the code.
+Feel free to add any modification.
