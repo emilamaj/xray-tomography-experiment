@@ -7,4 +7,4 @@ Several basic image filtering steps are performed on these 2D slices before they
 This "slice pile" represents a pile of point grids of the 3D volume that is deduced by the algorithm for the scanned object.
 A final step is taken to build the mesh geometry represented by the point grids.
 
-[Image](src)
+[Image](screenshot.png)
