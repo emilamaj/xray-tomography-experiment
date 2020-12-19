@@ -38,8 +38,10 @@ scanControlsSetup();
 sliceControlsSetup();
 catControlsSetup();
 init();
-requestAnimationFrame(renderScan);
 renderScan();
+renderSlice();
+renderCat();
+setTimeout(function(){renderScan();renderSlice();renderCat()},500)
 
 function scanControlsSetup(){
     //Page input controls
@@ -155,11 +157,11 @@ function catControlsSetup(){
 
 function canvasUpdateSize(){
     scanCanvasWidth = window.innerWidth / 3;
-    scanCanvasHeight = window.innerHeight / 1.5;
+    scanCanvasHeight = window.innerHeight / 2;
     sliceCanvasWidth = window.innerWidth / 3;
-    sliceCanvasHeight = window.innerHeight / 1.5;
+    sliceCanvasHeight = window.innerHeight / 2;
     catCanvasWidth = window.innerWidth / 3;
-    catCanvasHeight = window.innerHeight / 1.5;
+    catCanvasHeight = window.innerHeight / 2;
 }
 function onWindowResize() {
     canvasUpdateSize();
@@ -208,15 +210,15 @@ function init() {
     // CAMERA
     //scan
     scanCamera = new THREE.PerspectiveCamera(45, scanCanvasWidth / scanCanvasHeight, 0.01, 100);
-    scanCamera.position.set(0, 0, 5);
-    scanCamera.lookAt(new THREE.Vector3(0,0,0));
+    scanCamera.position.set(0, 3, 7);
+    scanCamera.lookAt(new THREE.Vector3(0,1,0));
     //slice
     sliceCamera = new THREE.PerspectiveCamera(45, sliceCanvasWidth / sliceCanvasHeight, 0.01, 100);
-    sliceCamera.position.set(0, 0, 5);
-    sliceCamera.lookAt(new THREE.Vector3(0,0,0));
+    sliceCamera.position.set(0, 1, 3);
+    sliceCamera.lookAt(new THREE.Vector3(0,1,0));
     //cat
     catCamera = new THREE.PerspectiveCamera(45, catCanvasWidth / catCanvasHeight, 0.01, 100);
-    catCamera.position.set(0, 0, 5);
+    catCamera.position.set(0, 3, 6);
     catCamera.lookAt(new THREE.Vector3(0,0,0));
     // CONTROLS
     scanCameraControls = new OrbitControls( scanCamera, scanRenderer.domElement );

@@ -4,16 +4,21 @@ body {
 	color: rgb(44, 44, 44);
 	font-family: Monospace;
 	font-size: 13px;
-	line-height: 24px;
+	line-height: normal;
 	overscroll-behavior: auto;
 }
 
-canvas {
-	display: block;
+#pageBlocks {
+	max-width: 960;
+	margin: auto;
+	display: flex;
 }
-
+.infoText{
+	margin: auto;
+}
 .glcanvas {
 	outline: none;
+	display: block;
 }
 
 .sidediv {
@@ -25,9 +30,6 @@ canvas {
 	margin: auto;
 }
 
-#pageBlocks {
-	display: flex;
-}
 
 .panel {
 	padding: 0 18px;
